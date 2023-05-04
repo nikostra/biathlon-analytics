@@ -9,11 +9,13 @@ race_id = 1
 shots = load_shots()
 shots_short = load_shots(FALSE)
 summary(shots)
+data = shots
 
 y = (shots$target)
 
 # try regression
-regData = shots[,2:15]
+regData = shots[,2:21]
+
 model = glm(y ~ ., data = regData)
 summary(model)
 min(na.omit(predict(model, shots)))
