@@ -1,0 +1,11 @@
+name: biathlon_pred
+title:
+username:
+account: nikostra
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 9154423
+bundleId: 7244345
+url: https://nikostra.shinyapps.io/biathlon_pred/
+when: 1684674423.68762
+lastSyncTime: 1684674423.68763
