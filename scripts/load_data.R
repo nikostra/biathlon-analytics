@@ -1,4 +1,5 @@
-
+# function to read shooting series from a file
+# in the excel every row corresponds to one shooting series of five shots
 read_shooting_series = function(file, gender){
   shooting_series <- read_excel(file, sheet = "Protocol")
   
@@ -11,7 +12,8 @@ read_shooting_series = function(file, gender){
   cells = xlsx_cells(file, sheets = 'Protocol')
   cells = cells[25:nrow(cells), ]
   formats = xlsx_formats(file)
-  misses = cells[cells$local_format_id %in% which(formats$local$font$bold),] # get all cells with bold letters -> misses
+  # get all cells with bold letters -> misses
+  misses = cells[cells$local_format_id %in% which(formats$local$font$bold),] 
   # next step: add miss to previous data frame
   for (i in 1:nrow(misses)){
     shot_number = misses[i,]$col - 7
@@ -20,6 +22,8 @@ read_shooting_series = function(file, gender){
   }
   
   rows_to_remove = c()
+  # remove rows with missing data. == indicates missing data in the source
+  # also setup shooting time for each shot 
   if(any(grepl("==", shooting_series$`Shot 1`))){
     rows_to_remove = c(rows_to_remove, grep("==", shooting_series$`Shot 1`))
     shooting_series$shooting_time_1 = round(as.numeric(shooting_series$`Shot 1`)*86400, digits = 1)    
@@ -60,30 +64,37 @@ read_shooting_series = function(file, gender){
     shooting_series$shooting_time_5[!grepl("\\.0$", format(shooting_series$shooting_time_5))] <- shooting_series$shooting_time_5[!grepl("\\.0$", format(shooting_series$shooting_time_5))] - 1
   }
   
+  # remove rows with columns with errors
   if(length(rows_to_remove) > 0){
-    shooting_series = shooting_series[-unique(rows_to_remove),] # remove rows with columns with errors
+    shooting_series = shooting_series[-unique(rows_to_remove),] 
   }
 
+  # add all the athletes of this file to the athlete data frame
   athletes <<- add_athletes(shooting_series$Name,gender,shooting_series$Nation)
   
+  # add the athlete IDs from the athlete data frame
   shooting_series <- shooting_series %>% rowwise() %>% 
     mutate(athlete_id = get_id(Name))
   
   shooting_series$race_id = race_id
+  # update race id so that race ID is unique
   race_id <<- race_id + 1
   return(shooting_series)
 }
 
-# split data from shooting series to single shots
+# this function is used to split data from shooting series to single shots
+# the file of shooting series and the other competition info is passed as arguments
 split_series = function(shooting_series, location, season, discipline, level=1){
   shots = get_shots_df()
   total_shots = ifelse(discipline == "sprint", 10, 20)
+  
   for (series in 1:nrow(shooting_series)) {
     i = nrow(shots) + 1
     athlete_db_id = which(athletes$id == shooting_series[series,]$athlete_id)
     
     shots[i:(i+4),]$race_id = shooting_series[series,]$race_id
     
+    # setup data for first shot of series
     shots[i,]$shooting_time = shooting_series[series,]$shooting_time_1
     shots[i,]$shot_number_series = 1
     shots[i,]$shot_number_race = 1 + (shooting_series[series,]$Lap - 1) * 5
@@ -95,6 +106,7 @@ split_series = function(shooting_series, location, season, discipline, level=1){
     shots[i,]$hitrate_in_race = ifelse(shots[i,]$shot_number_race == 1,1, prior_hits/(shots[i,]$shot_number_race - 1))
     shots[i,]$target = shooting_series[series,]$shot1
     
+    # setup data for second shot of series
     shots[i+1,]$target = shooting_series[series,]$shot2
     shots[i+1,]$shooting_time = shooting_series[series,]$shooting_time_2
     shots[i+1,]$shot_number_series = 2
@@ -105,6 +117,7 @@ split_series = function(shooting_series, location, season, discipline, level=1){
     prior_hits = prior_hits + (1*shots[i,]$target)
     shots[i+1,]$hitrate_in_race = prior_hits/(shots[i,]$shot_number_race)
     
+    # setup data for third shot of series
     shots[i+2,]$target = shooting_series[series,]$shot3
     shots[i+2,]$shooting_time = shooting_series[series,]$shooting_time_3
     shots[i+2,]$shot_number_series = 3
@@ -115,6 +128,7 @@ split_series = function(shooting_series, location, season, discipline, level=1){
     prior_hits = prior_hits + (1*shots[i+1,]$target)
     shots[i+2,]$hitrate_in_race = prior_hits/(shots[i+1,]$shot_number_race)
     
+    # setup data for fourth shot of series
     shots[i+3,]$target = shooting_series[series,]$shot4
     shots[i+3,]$shooting_time = shooting_series[series,]$shooting_time_4
     shots[i+3,]$shot_number_series = 4
@@ -125,6 +139,7 @@ split_series = function(shooting_series, location, season, discipline, level=1){
     prior_hits = prior_hits + (1*shots[i+2,]$target)
     shots[i+3,]$hitrate_in_race = prior_hits/(shots[i+2,]$shot_number_race)
     
+    # setup data for fifth shot of series
     shots[i+4,]$target = shooting_series[series,]$shot5
     shots[i+4,]$shooting_time = shooting_series[series,]$shooting_time_5
     shots[i+4,]$shot_number_series = 5
@@ -135,6 +150,7 @@ split_series = function(shooting_series, location, season, discipline, level=1){
     prior_hits = prior_hits + (1*shots[i+3,]$target)
     shots[i+4,]$hitrate_in_race = prior_hits/(shots[i+3,]$shot_number_race)
     
+    #setup data that is the same for every shot of series
     shots[i:(i+4),]$location = location
     shots[i:(i+4),]$discipline = discipline
     shots[i:(i+4),]$head_to_head = ifelse(discipline == "sprint" | discipline == "individual",0,1)
@@ -149,7 +165,7 @@ split_series = function(shooting_series, location, season, discipline, level=1){
   return(shots)
 }
 
-
+# this function returns a dummy data frame with all the model variables
 get_shots_df = function(){
   shots = data.frame(target = numeric(), location = character(), discipline = character(), season = character(),
                      athlete_id = numeric(), gender = character(), lap = numeric(), mode = character(),
@@ -162,6 +178,7 @@ get_shots_df = function(){
   return(shots)
 }
 
+# add the weather variables for a location
 add_weather = function(shots, wind_speed, snow_cond, weather, air_temp){
   shots$wind_speed = wind_speed
   if(wind_speed < 2){
@@ -177,18 +194,23 @@ add_weather = function(shots, wind_speed, snow_cond, weather, air_temp){
   return(shots)
 }
 
+# this function loads data from the excel files into a data frame with all the model variables
 load_shots = function(load_all = TRUE){
   shots = get_shots_df()
   
   if(load_all){
-    
     #season 2018-2019
     print("Load season 2018-19")
     
+    # filename
     file_o = "data/18_19/Pokljuka/Individual Men.xlsx"
+    # load shooting series
     shooting_series = read_shooting_series(file_o,"m")
+    # split the shooting series in a data frame with each shot as a row
     new_shots = split_series(shooting_series,"pokljuka", "1819", "individual")
+    # add the weather data
     new_shots = add_weather(new_shots, 0.9, "compact", "cloudy", 0.7)
+    # combine with previous shots
     shots = rbind(shots, new_shots)
     
     file_o = "data/18_19/Pokljuka/Individual Women.xlsx"
@@ -1364,7 +1386,7 @@ load_shots = function(load_all = TRUE){
   new_shots = add_weather(new_shots, 2.1, "hard packed", "cloudy", 0.0)
   shots = rbind(shots, new_shots)
 
-
+  # convert categorical variables to factor
   shots$location = as.factor(shots$location)
   shots$discipline = as.factor(shots$discipline)
   shots$season = as.factor(shots$season)
@@ -1376,6 +1398,10 @@ load_shots = function(load_all = TRUE){
   shots$competition_level = as.factor(shots$competition_level)
   
   print("compute hit rates")
+  # compute the preceding hit rates for each athlete
+  
+  # helper function for the rolling average of the preceding hit rate
+  # taking into account if a biathlete does not yet have e.g. 200 preceding shots
   an = function(n, len) c(seq.int(to = n), rep(n, len-n))
 
   shots$pre_hit_rate_10 = NA
@@ -1386,7 +1412,10 @@ load_shots = function(load_all = TRUE){
   shots$pre_hit_rate_200_mode = NA
   shots$pre_hit_rate_200_mode_shotNr = NA
   
+  # iterate through each athlete
   for (id in unique(shots$athlete_id)) {
+    #setup variables with index of rows of shots of athlete for each of the categories
+    # of preceding hit rate (total, prone, standing, shot and mode specific)
     athlete_ids = which(shots$athlete_id == id)
     athlete_ids_p = which(shots$athlete_id == id & shots$mode == "P")
     athlete_ids_s = which(shots$athlete_id == id & shots$mode == "S")
@@ -1403,6 +1432,7 @@ load_shots = function(load_all = TRUE){
     athlete_ids_p_shot4 = which(shots$athlete_id == id & shots$mode == "P" & shots$shot_number_series == 4)
     athlete_ids_p_shot5 = which(shots$athlete_id == id & shots$mode == "P" & shots$shot_number_series == 5)
     
+    # get the shots for each category
     temp_shots = shots[athlete_ids,]
     temp_shots_s = shots[athlete_ids_s,]
     temp_shots_p = shots[athlete_ids_p,]

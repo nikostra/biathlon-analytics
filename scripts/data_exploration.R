@@ -1,3 +1,4 @@
+# all the necessary packages to build the data and model
 library(tidyverse)
 library(xgboost)
 library(data.table)
@@ -12,25 +13,33 @@ library(caret)
 library(rpart)
 library(rpart.plot)
 
+# setup the athlete DB as a data frame
 athletes = data.frame(id=c(1), name=c("wright campbell"), gender=c("m"), nation = c("NZL"))
+# initialise race_id
 race_id = 1
+
+# load all shots (this takes a while!)
 shots = load_shots()
-shots_short = load_shots(FALSE)
-shots_short = shots_short[,-4]
+
+# the rest of the file is just exploratory data analysis and model building, nothing here was used "in production"
+
+#load only shots from the last two season (for testing, runs faster)
+#shots_short = load_shots(FALSE)
+
 summary(shots)
 data = shots
 
+# setup target
 y = (shots$target)
 
-# try regression
+# Linear regression with shot data
 regData = shots[,2:ncol(shots)]
 regData = regData[,-3]
 
 model = glm(y ~ ., data = regData)
 summary(model)
-min(na.omit(predict(model, shots)))
 
-# xgboost
+# Define sparse matrix from the data and setup a preliminary Xgboost model
 sparse_matrix <- sparse.model.matrix(target ~ ., data = shots)[,-1]
 sparse_matrix = sparse_matrix[,-c(11,22)] # remove athlete and race ID
 model <- xgboost(data = sparse_matrix, label = y, max_depth = 12,
@@ -38,7 +47,7 @@ model <- xgboost(data = sparse_matrix, label = y, max_depth = 12,
 importance <- xgb.importance(feature_names = colnames(sparse_matrix), model = model)
 head(importance, n = 10)
 
-# split in test and train
+# split data in test and train for more serious elaboration. Choose one season as test, rest as train
 train = shots %>% filter(season != "1819") %>% drop_na() %>% select(-ends_with('id'))
 sparse_matrix_train <- sparse.model.matrix(target ~ ., data = train)[,-1]
 y_train = train[,1]
@@ -72,7 +81,7 @@ explore_targetpct(shots %>% filter(mode == "S" & shot_number_series == 5),
                   last_shot) + xlab("Last shot")
 explore_targetpct(shots, competition_level)
 
-#rpart
+#rpart testing
 tree_data = shots
 tree_data$target = as.factor(tree_data$target)
 tree = rpart(target ~ ., data = tree_data, parms = list(split = "information"), cp = 0.000075)

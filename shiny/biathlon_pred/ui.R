@@ -1,5 +1,7 @@
+# code for the ui of the shiny app
 library(shiny)
 
+# setup lists of possible inputs
 locations = c(
   "antholz",
   "arber",
@@ -19,6 +21,7 @@ shinyUI(fluidPage(
   titlePanel("Predict Biathlon Shooting"),
   
   sidebarLayout(
+    # input panel
     sidebarPanel(
       selectizeInput("athlete", "Athlete:", athletes_data$name , selected = "boe johannes thingnes"),
       
@@ -31,19 +34,20 @@ shinyUI(fluidPage(
       actionButton("button", "Predict shooting", class = "btn-primary")
       
     ),
+    # main panel for displaying results
     mainPanel(
-
       tags$head(tags$style(
+        # define CSS style for displaying the images
         HTML(
           "
         .image-container {
           display: flex;
           flex-wrap: nowrap;
-          margin-right: -10px; /* Adjust the margin as needed */
+          margin-right: -10px;
         }
         .image-container > div {
           flex: 0 0 auto;
-          padding-right: 0px; /* Adjust the padding as needed */
+          padding-right: 0px;
         }
       "
         )
@@ -66,10 +70,7 @@ shinyUI(fluidPage(
         div(imageOutput("shot5")),
       ),
       div(
-
       )
-      
-
     )
   )
 ))

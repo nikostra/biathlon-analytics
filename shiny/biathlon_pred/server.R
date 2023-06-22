@@ -1,18 +1,16 @@
 #
-# This is the server logic of a Shiny web application. You can run the
-# application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
+# This is the server logic of the shiny web app
 #
 
 library(shiny)
 library(xgboost)
 
+# load the model, athlete data and a sample model matrix from the provided files
 model = xgboost::xgb.load("xgb.model")
-load("model_matrix.RData") # load model_matrix object with 5 dummy observations
-load("athletes_data.RData") # load athletes data
+load("model_matrix.RData") 
+load("athletes_data.RData")
+
+# define some variables
 locations = c("antholz","arber","brezno","hochfilzen","nove mesto","oberhof","pokljuka","ridnaun","ruhpolding")
 disciplines = c("individual", "mass start", "pursuit", "sprint")
 threshold = 0.8072
@@ -32,8 +30,7 @@ setup_data = function(data){
   
   data[,12:14] = 0 # setup season (2022/23)
   data[,15] = 1 
-  
-  data[,30:31] = 0 # setup snow condition (assume hard packed)
+  data[,30:31] = 0 
   data[,29] = 1
   
   return(data)
@@ -42,16 +39,19 @@ setup_data = function(data){
 
 shinyServer(function(input, output) {
 
+  # function triggers if user hits the predict button
   observeEvent(input$button, {
     prediction_loaded = TRUE
     # reset data
     model_matrix = setup_data(model_matrix)
     
+    # setup data for new athlete
     athlete_id = which(athletes_data$name == input$athlete)
     model_matrix[,40] = as.numeric(athletes_data$pre_hit_rate_10[athlete_id])
     model_matrix[,42] = as.numeric(athletes_data$pre_hit_rate_50[athlete_id])
     model_matrix[,44] = as.numeric(athletes_data$pre_hit_rate_200[athlete_id])
     
+    # set up variables according to shooting mode (shootings 1 and 3 are prone, others are standing)
     if (as.numeric(input$shooting_nr) %% 2 == 0){
       model_matrix[1,23] = as.numeric(athletes_data$shooting_time_s_shot1[athlete_id])
       model_matrix[2:5,23] = as.numeric(athletes_data$shooting_time_s[athlete_id])
@@ -103,6 +103,7 @@ shinyServer(function(input, output) {
     model_matrix[,24] = 0
     model_matrix[5,24] = ifelse(model_matrix[5,22] == 1,1,0)
     
+    # compute model hit probabilities and setup outputs
     hits = rbinom(5,1,predict(model, model_matrix))
     probs = predict(model, model_matrix)
     probs = round(probs, digits = 4) * 100
@@ -115,6 +116,7 @@ shinyServer(function(input, output) {
     output$simulate <- renderText({"Simulated outcome:"})
     output$probs_title <- renderText({"Predicted probabilities: "})
     
+    # render the image output according to the simulated outcomes
     output$shot1 = renderImage({
       if (hits[1] == 1) {
         return(list(
@@ -196,7 +198,4 @@ shinyServer(function(input, output) {
     }, deleteFile = FALSE)
     
   })
-  
-  
-
 })
